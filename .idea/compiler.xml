@@ -9,8 +9,6 @@
         <module name="innovation-spoofing" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="innovationspoofing" target="1.5" />
-    </bytecodeTargetLevel>
+    <bytecodeTargetLevel target="8" />
   </component>
 </project>
