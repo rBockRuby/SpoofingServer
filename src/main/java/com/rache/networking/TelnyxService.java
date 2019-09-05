@@ -38,7 +38,6 @@ public interface TelnyxService {
 
     @POST("/calls/{controlId}/actions/hangup")
     Call<String> disconnectCall(@Header("Authorization") String auth,
-                                @Body HashMap<String, String> body,
                                 @PathParam("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/gather_using_speak")

@@ -17,10 +17,6 @@ import java.util.Map;
 public class TextSpoofResource {
     private Retrofit retrofit;
 
-    private static String TELNYX_SECRET = System.getenv("TELNYX_MSG_SECRET");
-    private static String TELNYX_API_TOKEN = System.getenv("TELNYX_API_TOKEN");
-    private static String TELNYX_API_KEY = System.getenv("TELNYX_API_KEY");
-
     public TextSpoofResource() {
         retrofit = new Retrofit.Builder()
                 .baseUrl("https://sms.telnyx.com")
@@ -48,7 +44,7 @@ public class TextSpoofResource {
             body.put("to", textRequest.getToNumber());
             body.put("body", textRequest.getMessageBody());
 
-            Call<Map<String, Object>> call = telnyxService.sendMessage(TELNYX_SECRET, body);
+            Call<Map<String, Object>> call = telnyxService.sendMessage("Vy0M3eCysbDVsSFJncOvkyqq", body);
             Response<Map<String, Object>> response = call.execute();
             return response.message();
         } catch (Exception e) {

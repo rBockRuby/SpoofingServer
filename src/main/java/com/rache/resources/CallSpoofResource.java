@@ -9,25 +9,30 @@ import retrofit2.http.POST;
 
 import javax.ws.rs.Path;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 
 @Path("/call")
 public class CallSpoofResource {
     private Retrofit retrofit;
 
-    private static String TELNYX_API_TOKEN = System.getenv("TELNYX_API_TOKEN");
-    private static String TELNYX_API_KEY = System.getenv("TELNYX_API_KEY");
+    private static String TELNYX_API_SECRET = "Kcu6SKYARPCr1yReo9NczQ";
+    private static String TELNYX_API_KEY = "c110f6e8-494b-44c7-a090-ef34e4c8f3be";
+
+    private List<String> sessionList = new ArrayList<>();
 
     public CallSpoofResource() {
         retrofit = new Retrofit.Builder()
-                .baseUrl("https://sms.telnyx.com")
+                .baseUrl("https://api.telnyx.com")
                 .addConverterFactory(JacksonConverterFactory.create())
                 .build();
     }
 
-    @POST("/incomingCall")
+    @POST("/cycid")
     public String handleIncomingCall() {
+        
 //        incomingcall = request.get_json()
 //        event_type = incomingcall['event_type']
 //        payload = incomingcall['payload']
@@ -65,8 +70,86 @@ public class CallSpoofResource {
 //        return '', 200
 //        return '', 200
 
+//        def say_message(control_id, message, client_state):
+//        url = 'https://api.telnyx.com/calls/{}/actions/speak'.format(control_id)
+//        body = {
+//                "payload": message,
+//                "client_state": client_state,
+//                "payload_type": "text",
+//                "service_level": "premium",
+//                "voice": "female",
+//                "language": "en-US"
+//        }
+//        body_json = json.dumps(body)
+//        send = requests.request('POST', url, headers=headers, data=body_json, auth=(telnyx_key, telnyx_secret))
+
         return "Success";
     }
+
+    private String sayMessage(String controlId, String message, String clientState) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+
+        HashMap<String, String> body = new HashMap<>();
+        body.put("payload", "message");
+        body.put("client_state", clientState);
+        body.put("payload_type", "text");
+        body.put("service_level", "premium");
+        body.put("voice", "female");
+        body.put("language", "en-US");
+
+        Call<String> call = telnyxService.sayMessage(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
+
+        try {
+            Response response = call.execute();
+            return response.message();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "Failed sayMessage";
+    }
+
+    private String answerCall(String controlId, String session) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+        int count = sessionList.size();
+
+        String clientState = "";
+
+        if (count >= 1) {
+            clientState = encode("incoming_transfer");
+        } else {
+            clientState = encode("gather_digits");
+            sessionList.add(session);
+        }
+
+        HashMap<String, String> body = new HashMap<>();
+        body.put("client_state", clientState);
+
+        Call<String> call = telnyxService.answerCall(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
+
+        try {
+            Response response = call.execute();
+            return response.message();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "Failed answerCall";
+    }
+
+    private String disconnectCall(String controlId, String session) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+        sessionList.remove(session);
+
+        Call<String> call = telnyxService.disconnectCall(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, controlId);
+
+        try {
+            Response response = call.execute();
+            return response.message();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "Failed disconnectCall";
+    }
+
 
     private String gatherDigits(String controlId) {
         TelnyxService telnyxService = retrofit.create(TelnyxService.class);
@@ -85,7 +168,7 @@ public class CallSpoofResource {
         body.put("terminating_digit", "#");
         body.put("client_state", clientState);
 
-        Call<String> call = telnyxService.gatherDigits(TELNYX_API_KEY + ":" + TELNYX_API_TOKEN, body, controlId);
+        Call<String> call = telnyxService.gatherDigits(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
         try {
             Response response = call.execute();
             return response.message();
@@ -93,6 +176,28 @@ public class CallSpoofResource {
             e.printStackTrace();
         }
         return "Failed";
+    }
+
+    private String transferCall(String controlId, String toNumber, String fromNumber) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+
+        String clientState = encode("call_transfer");
+
+        HashMap<String, String> body = new HashMap<>();
+        body.put("to", toNumber);
+        body.put("from", fromNumber);
+        body.put("client_state", clientState);
+
+        Call<String> call = telnyxService.transferCall(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
+
+        try {
+            Response response = call.execute();
+            return response.message();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return "Failed transferCall";
     }
 
     private String encode(String data) {
@@ -105,11 +210,13 @@ public class CallSpoofResource {
 
     private void evaluateDigits(String controlId, String digits) {
         if (digits.equals("5546")) {
-            System.out.println("Transfering call");
-            // TODO: CALL TRANSFER CALL
+            System.out.println("Transferring call");
+            transferCall(controlId, "+15032726115", "+15034456900");
         } else {
             System.out.println("authentication failed");
-            //TODO: CALL SAY MESSAGE
+            String clientState = encode("disconnect_call_auth_error");
+            String message = "Authentication failed, please try again.  Goodbye!";
+            sayMessage(controlId, message, clientState);
         }
     }
 }
