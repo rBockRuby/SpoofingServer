@@ -1,13 +1,8 @@
 package com.rache.networking;
 
-import com.fasterxml.jackson.databind.util.JSONPObject;
 import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.Header;
-import retrofit2.http.Headers;
-import retrofit2.http.POST;
+import retrofit2.http.*;
 
-import javax.ws.rs.PathParam;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,29 +21,28 @@ public interface TelnyxService {
 
     // CALL
     @POST("/calls/{controlId}/ations/speak")
-    Call<String> sayMessage(
+    Call<Map<String, Object>> sayMessage(
             @Header("Authorization") String auth,
             @Body HashMap<String, String> body,
-            @PathParam("controlId") String controlId);
+            @Path("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/answer")
-    Call<String> answerCall(@Header("Authorization") String auth,
-                            @Body HashMap<String, String> body,
-                            @PathParam("controlId") String controlId);
+    Call<Map<String, Object>> answerCall(@Body HashMap<String, String> body,
+                            @Path("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/hangup")
-    Call<String> disconnectCall(@Header("Authorization") String auth,
-                                @PathParam("controlId") String controlId);
+    Call<Map<String, Object>> disconnectCall(@Header("Authorization") String auth,
+                                @Path("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/gather_using_speak")
-    Call<String> gatherDigits(@Header("Authorization") String auth,
+    Call<Map<String, Object>> gatherDigits(@Header("Authorization") String auth,
                               @Body HashMap<String, String> body,
-                              @PathParam("controlId") String controlId);
+                              @Path("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/transfer")
-    Call<String> transferCall(@Header("Authorization") String auth,
+    Call<Map<String, Object>> transferCall(@Header("Authorization") String auth,
                               @Body HashMap<String, String> body,
-                              @PathParam("controlId") String controlId);
+                              @Path("controlId") String controlId);
 
 
 }

@@ -14,6 +14,7 @@ public class Payload {
     private String client_state;
     private String direction;
     private String state;
+    private String digits;
 
     public String getTo() {
         return to;
@@ -93,5 +94,13 @@ public class Payload {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public String getDigits() {
+        return digits;
+    }
+
+    public void setDigits(String digits) {
+        this.digits = digits;
     }
 }
