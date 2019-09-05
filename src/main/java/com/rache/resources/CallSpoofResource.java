@@ -1,7 +1,9 @@
 package com.rache.resources;
 
 import com.rache.data.calls.CallData;
+import com.rache.data.calls.CallRequest;
 import com.rache.data.calls.Payload;
+import com.rache.db.ConnectionPool;
 import com.rache.networking.BasicAuthInterceptor;
 import com.rache.networking.TelnyxService;
 import okhttp3.OkHttpClient;
@@ -17,6 +19,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.*;
 import java.util.*;
 
 @Path("/call")
@@ -38,6 +41,37 @@ public class CallSpoofResource {
                 .addConverterFactory(JacksonConverterFactory.create())
                 .client(client)
                 .build();
+    }
+
+    private static final String ADD_NEW_CALL = "INSERT INTO call_data (from_number, to_number, user_id)" +
+            "VALUES (?, ?, ?)";
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("/initiate_call")
+    public Map<String, String> initiateCall(CallRequest callRequest) {
+        if (callRequest == null) {
+            return new HashMap<String, String>();
+        }
+
+        try (Connection conn = ConnectionPool.getConnection()) {
+            PreparedStatement stmt = conn.prepareStatement(ADD_NEW_CALL);
+            stmt.setString(1, callRequest.getFromNumber());
+            stmt.setString(2, callRequest.getToNumber());
+            stmt.setString(3, callRequest.getUserId());
+
+            stmt.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        Map<String, String> response = new HashMap<String, String>();
+        response.put("numberToCall", "+19712881007");
+        response.put("pause", ",,");
+        response.put("pin", "5546");
+
+        return response;
     }
 
     @POST
@@ -90,7 +124,7 @@ public class CallSpoofResource {
         body.put("voice", "female");
         body.put("language", "en-US");
 
-        Call<Map<String, Object>> call = telnyxService.sayMessage(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
+        Call<Map<String, Object>> call = telnyxService.sayMessage(body, controlId);
 
         try {
             Response response = call.execute();
@@ -104,7 +138,13 @@ public class CallSpoofResource {
     private String answerCall(String controlId, String session) {
         System.out.print("Answer Call");
         TelnyxService telnyxService = retrofit.create(TelnyxService.class);
-        int count = sessionList.size();
+        int count = 0;
+
+        for (String s : sessionList) {
+            if (session.equals(s)) {
+                count += 1;
+            }
+        }
 
         String clientState = "";
 
@@ -166,7 +206,7 @@ public class CallSpoofResource {
         body.put("terminating_digit", "#");
         body.put("client_state", clientState);
 
-        Call<Map<String, Object>> call = telnyxService.gatherDigits(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
+        Call<Map<String, Object>> call = telnyxService.gatherDigits(body, controlId);
         try {
             Response response = call.execute();
             return response.message();
@@ -188,7 +228,7 @@ public class CallSpoofResource {
         body.put("from", fromNumber);
         body.put("client_state", clientState);
 
-        Call<Map<String, Object>> call = telnyxService.transferCall(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, body, controlId);
+        Call<Map<String, Object>> call = telnyxService.transferCall(body, controlId);
 
         try {
             Response response = call.execute();
@@ -209,10 +249,34 @@ public class CallSpoofResource {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
+    private static final String GET_CALL_TO_CONNECT = "SELECT * FROM call_data ORDER BY id DESC LIMIT 1";
+
     private void evaluateDigits(String controlId, String digits) {
         if (digits.equals("5546")) {
             System.out.println("Transferring call");
-            transferCall(controlId, "+14132817907", "+16303489537");
+
+            CallRequest callRequest = new CallRequest();
+
+            try (Connection conn = ConnectionPool.getConnection()) {
+                Statement stmt = conn.createStatement();
+                ResultSet resultSet = stmt.executeQuery(GET_CALL_TO_CONNECT);
+
+                while(resultSet.next()) {
+                    callRequest.setFromNumber(resultSet.getString("from_number"));
+                    callRequest.setToNumber(resultSet.getString("to_number"));
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+
+            if (callRequest.getFromNumber() != null && callRequest.getToNumber() != null) {
+                transferCall(controlId, callRequest.getToNumber(), callRequest.getFromNumber());
+            } else {
+                System.out.println("something failed");
+                String clientState = encode("disconnect_call_auth_error");
+                String message = "Sorry something failed, please try again.  Goodbye!";
+                sayMessage(controlId, message, clientState);
+            }
         } else {
             System.out.println("authentication failed");
             String clientState = encode("disconnect_call_auth_error");

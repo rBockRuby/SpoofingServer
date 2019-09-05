@@ -1,5 +1,6 @@
 package com.rache.resources;
 
+import com.rache.data.texts.TelnyxText;
 import com.rache.data.texts.TelnyxTextRequest;
 import com.rache.data.texts.TextRequest;
 import com.rache.networking.TelnyxService;
@@ -55,16 +56,19 @@ public class TextSpoofResource {
 
     @POST
     @Produces(MediaType.TEXT_PLAIN)
-    public String receiveText() {
+    @Path("/outgoing_sms")
+    public String receiveText(TelnyxText telnyxText) {
         TelnyxService telnyxService = retrofit.create(TelnyxService.class);
 
-        try {
-            Call<Map<String, Object>> call = telnyxService.receiveMessage();
-            Response<Map<String, Object>> response = call.execute();
-            return response.message();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+
+
+//        try {
+//            Call<Map<String, Object>> call = telnyxService.receiveMessage();
+//            Response<Map<String, Object>> response = call.execute();
+//            return response.message();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
         return "Failure";
     }
 }

@@ -22,7 +22,6 @@ public interface TelnyxService {
     // CALL
     @POST("/calls/{controlId}/ations/speak")
     Call<Map<String, Object>> sayMessage(
-            @Header("Authorization") String auth,
             @Body HashMap<String, String> body,
             @Path("controlId") String controlId);
 
@@ -35,12 +34,12 @@ public interface TelnyxService {
                                 @Path("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/gather_using_speak")
-    Call<Map<String, Object>> gatherDigits(@Header("Authorization") String auth,
+    Call<Map<String, Object>> gatherDigits(
                               @Body HashMap<String, String> body,
                               @Path("controlId") String controlId);
 
     @POST("/calls/{controlId}/actions/transfer")
-    Call<Map<String, Object>> transferCall(@Header("Authorization") String auth,
+    Call<Map<String, Object>> transferCall(
                               @Body HashMap<String, String> body,
                               @Path("controlId") String controlId);
 
