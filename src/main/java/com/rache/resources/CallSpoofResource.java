@@ -1,18 +1,22 @@
 package com.rache.resources;
 
+import com.rache.data.calls.CallData;
+import com.rache.data.calls.Payload;
 import com.rache.networking.TelnyxService;
 import retrofit2.Call;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.jackson.JacksonConverterFactory;
-import retrofit2.http.POST;
 
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 @Path("/call")
 public class CallSpoofResource {
@@ -30,58 +34,41 @@ public class CallSpoofResource {
                 .build();
     }
 
-    @POST("/cycid")
-    public String handleIncomingCall() {
-        
-//        incomingcall = request.get_json()
-//        event_type = incomingcall['event_type']
-//        payload = incomingcall['payload']
-//        session = payload['call_session_id']
-//        try:
-//        control_id = payload['call_control_id']
-//        except:
-//        control_id = 'Unknown'
-//        try:
-//        client_state = payload['client_state']
-//        except:
-//        client_state = None
-//    # logout = 'Event Type: {}\nCall Control ID: {}\nClient State: {}\nSession: {}'.format(event_type,control_id,client_state,session)
-//    # print(logout)
-//        if event_type == 'call_initiated':
-//        control_id = payload['call_control_id']
-//        answer_call(control_id, session)
-//    else:
-//        dclient_state = decode(client_state)
-//​
-//        if dclient_state == 'gather_digits':
-//        control_id = payload['call_control_id']
-//        gather_digits(control_id)
-//        elif dclient_state == 'evaluate_digits' and event_type == 'gather_ended':
-//        control_id = payload['call_control_id']
-//        digits = payload['digits']
-//        evaluate_digits(control_id, digits)
-//        elif dclient_state == 'disconnect_call_auth_error' and event_type == 'speak_ended':
-//        control_id = payload['call_control_id']
-//        disconnect_call(control_id, session)
-//        elif dclient_state == 'disconnect_call':
-//        control_id = payload['call_control_id']
-//        disconnect_call(control_id, session)
-//        else:
-//        return '', 200
-//        return '', 200
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
+    @Path("/cycid")
+    public String handleIncomingCall(CallData callData) {
+        if (callData == null) {
+            return "Failed to recieve call data";
+        }
 
-//        def say_message(control_id, message, client_state):
-//        url = 'https://api.telnyx.com/calls/{}/actions/speak'.format(control_id)
-//        body = {
-//                "payload": message,
-//                "client_state": client_state,
-//                "payload_type": "text",
-//                "service_level": "premium",
-//                "voice": "female",
-//                "language": "en-US"
-//        }
-//        body_json = json.dumps(body)
-//        send = requests.request('POST', url, headers=headers, data=body_json, auth=(telnyx_key, telnyx_secret))
+        Payload payload = callData.getPayload();
+
+        String controlId = "Unknown";
+        if (payload.getCall_control_id() != null) {
+            controlId = payload.getCall_control_id();
+        }
+        String clientState = "None";
+        if (payload.getClient_state() != null) {
+            clientState = payload.getClient_state();
+        }
+
+        if (callData.getEvent_type().equals("call_initiated")) {
+            answerCall(controlId, payload.getCall_session_id());
+        } else {
+            String decodedClientState = decode(clientState);
+             if (decodedClientState.equals("gather digits")) {
+                 gatherDigits(controlId);
+             } else if (decodedClientState.equals("evaluate_digits") && callData.getEvent_type().equals("gather_ended")) {
+                String digits = ""; //TODO CHECK ON WHAT DIGITS ARE
+                evaluateDigits(controlId, digits);
+             } else if (decodedClientState.equals("disconnect_call_auth_error") && callData.getEvent_type().equals("speak_ended")) {
+                 disconnectCall(controlId, payload.getCall_session_id());
+             } else if (decodedClientState.equals("disconnect_call")) {
+                 disconnectCall(controlId, payload.getCall_session_id());
+             }
+        }
 
         return "Success";
     }
@@ -204,8 +191,9 @@ public class CallSpoofResource {
         return Base64.getEncoder().encodeToString(data.getBytes());
     }
 
-    private byte[] decode(String data) {
-        return Base64.getDecoder().decode(data);
+    private String decode(String data) {
+        byte [] bytes =  Base64.getDecoder().decode(data);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private void evaluateDigits(String controlId, String digits) {
