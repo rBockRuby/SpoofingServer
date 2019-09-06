@@ -15,6 +15,8 @@ public class Payload {
     private String direction;
     private String state;
     private String digits;
+    private String recording_urls;
+    private String public_recording_urls;
 
     public String getTo() {
         return to;
@@ -102,5 +104,21 @@ public class Payload {
 
     public void setDigits(String digits) {
         this.digits = digits;
+    }
+
+    public String getRecording_urls() {
+        return recording_urls;
+    }
+
+    public void setRecording_urls(String recording_urls) {
+        this.recording_urls = recording_urls;
+    }
+
+    public String getPublic_recording_urls() {
+        return public_recording_urls;
+    }
+
+    public void setPublic_recording_urls(String public_recording_urls) {
+        this.public_recording_urls = public_recording_urls;
     }
 }

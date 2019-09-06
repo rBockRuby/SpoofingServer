@@ -30,6 +30,8 @@ public class CallSpoofResource {
     private static String TELNYX_API_KEY = "c110f6e8-494b-44c7-a090-ef34e4c8f3be";
 
     private List<String> sessionList = new ArrayList<>();
+    private Map<String, String> sessionMap = new HashMap<>();
+    private boolean record = false;
 
     public CallSpoofResource() {
         OkHttpClient client = new OkHttpClient.Builder()
@@ -78,7 +80,7 @@ public class CallSpoofResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.TEXT_PLAIN)
     @Path("/cycid")
-    public String handleIncomingCall(CallData callData) {
+    public String handleIncomingCall(CallData callData) throws IOException {
         if (callData == null) {
             return "Failed to receive call data";
         }
@@ -96,18 +98,32 @@ public class CallSpoofResource {
 
         if (callData.getEvent_type().equals("call_initiated")) {
             answerCall(controlId, payload.getCall_session_id());
+        } else if (callData.getEvent_type().equals("recording_saved")) {
+//            String urls = payload.getRecording_urls();
+//            String pubUrls = payload.getPublic_recording_urls();
+//            System.out.print(urls + " " + pubUrls);
         } else {
             String decodedClientState = decode(clientState);
-             if (decodedClientState.equals("gather_digits")) {
-                 gatherDigits(controlId);
-             } else if (decodedClientState.equals("evaluate_digits") && callData.getEvent_type().equals("gather_ended")) {
+            if (decodedClientState.equals("gather_digits")) {
+                gatherDigits(controlId);
+            } else if (decodedClientState.equals("evaluate_digits") && callData.getEvent_type().equals("gather_ended")) {
                 String digits = payload.getDigits();
                 evaluateDigits(controlId, digits);
-             } else if (decodedClientState.equals("disconnect_call_auth_error") && callData.getEvent_type().equals("speak_ended")) {
-                 disconnectCall(controlId, payload.getCall_session_id());
-             } else if (decodedClientState.equals("disconnect_call")) {
-                 disconnectCall(controlId, payload.getCall_session_id());
-             }
+            } else if (decodedClientState.equals("disconnect_call_auth_error") && callData.getEvent_type().equals("speak_ended")) {
+                disconnectCall(controlId, payload.getCall_session_id());
+            } else if (decodedClientState.equals("disconnect_call")) {
+                disconnectCall(controlId, payload.getCall_session_id());
+            } else if (decodedClientState.equals("play_legal") && callData.getEvent_type().equals("call_answered")) {
+                String message = "This call may be recorded for quality assurance or training purposes.";
+                clientState = encode("bridge_call");
+                sayMessage(controlId, message, clientState);
+            } else if (decodedClientState.equals("bridge_call") && callData.getEvent_type().equals("speak_ended")) {
+                clientState = encode("record_call");
+                bridgeCall(controlId, payload.getCall_session_id(), clientState);
+            } else if (decodedClientState.equals("record_call") && callData.getEvent_type().equals("call_bridged")) {
+                clientState = encode("");
+                recordCall(controlId, payload.getCall_session_id(), clientState);
+            }
         }
 
         return "Success";
@@ -135,45 +151,38 @@ public class CallSpoofResource {
         return "Failed sayMessage";
     }
 
-    private String answerCall(String controlId, String session) {
+    private void answerCall(String controlId, String session) throws IOException {
         System.out.print("Answer Call");
         TelnyxService telnyxService = retrofit.create(TelnyxService.class);
-        int count = 0;
-
-        for (String s : sessionList) {
-            if (session.equals(s)) {
-                count += 1;
-            }
-        }
-
         String clientState = "";
 
-        if (count >= 1) {
-            clientState = encode("incoming_transfer");
+        if (sessionMap.containsKey(session)) {
+            if (record) {
+                // pass
+            } else {
+                clientState = encode("incoming_transfer");
+                HashMap<String, String> body = new HashMap<>();
+                body.put("client_state", clientState);
+
+                Call<Map<String, Object>> call = telnyxService.answerCall(body, controlId);
+                call.execute();
+            }
         } else {
             clientState = encode("gather_digits");
-            sessionList.add(session);
+            sessionMap.put(session, controlId);
+            HashMap<String, String> body = new HashMap<>();
+            body.put("client_state", clientState);
+
+            Call<Map<String, Object>> call = telnyxService.answerCall(body, controlId);
+            call.execute();
         }
-
-        HashMap<String, String> body = new HashMap<>();
-        body.put("client_state", clientState);
-
-        Call<Map<String, Object>> call = telnyxService.answerCall(body, controlId);
-
-        try {
-            Response response = call.execute();
-            return response.message();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return "Failed answerCall";
     }
 
     private String disconnectCall(String controlId, String session) {
         System.out.print("Disconnect Call");
 
         TelnyxService telnyxService = retrofit.create(TelnyxService.class);
-        sessionList.remove(session);
+        sessionMap.remove(session);
 
         Call<Map<String, Object>> call = telnyxService.disconnectCall(TELNYX_API_KEY + ":" + TELNYX_API_SECRET, controlId);
 
@@ -245,7 +254,7 @@ public class CallSpoofResource {
     }
 
     private String decode(String data) {
-        byte [] bytes =  Base64.getDecoder().decode(data);
+        byte[] bytes = Base64.getDecoder().decode(data);
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
@@ -261,7 +270,7 @@ public class CallSpoofResource {
                 Statement stmt = conn.createStatement();
                 ResultSet resultSet = stmt.executeQuery(GET_CALL_TO_CONNECT);
 
-                while(resultSet.next()) {
+                while (resultSet.next()) {
                     callRequest.setFromNumber(resultSet.getString("from_number"));
                     callRequest.setToNumber(resultSet.getString("to_number"));
                 }
@@ -270,7 +279,11 @@ public class CallSpoofResource {
             }
 
             if (callRequest.getFromNumber() != null && callRequest.getToNumber() != null) {
-                transferCall(controlId, callRequest.getToNumber(), callRequest.getFromNumber());
+                if (record) {
+                    placeCall(controlId, callRequest.getToNumber(), callRequest.getFromNumber());
+                } else {
+                    transferCall(controlId, callRequest.getToNumber(), callRequest.getFromNumber());
+                }
             } else {
                 System.out.println("something failed");
                 String clientState = encode("disconnect_call_auth_error");
@@ -282,6 +295,66 @@ public class CallSpoofResource {
             String clientState = encode("disconnect_call_auth_error");
             String message = "Authentication failed, please try again.  Goodbye!";
             sayMessage(controlId, message, clientState);
+        }
+    }
+
+    private void placeCall(String controlId, String toNumber, String fromNumber) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+
+        String clientState = encode("play_legal");
+        String connectionId = "1189227170199766935";
+
+        HashMap<String, Object> body = new HashMap<>();
+        body.put("to", toNumber);
+        body.put("from", fromNumber);
+        body.put("connection_id", connectionId);
+        body.put("timeout", 30);
+        body.put("client_state", clientState);
+        body.put("link_to", controlId);
+
+        Call<Map<String, Object>> call = telnyxService.placeCall(body);
+
+        try {
+            call.execute();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void bridgeCall(String controlId, String session, String clientState) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+
+        String initialCallLeg = sessionMap.get(session);
+
+        HashMap<String, String> body = new HashMap<>();
+        body.put("call_control_id", initialCallLeg);
+        body.put("client_state", clientState);
+
+        Call<Map<String, Object>> call = telnyxService.bridgeCall(body, controlId);
+
+        try {
+            call.execute();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void recordCall(String controlId, String session, String clientState) {
+        TelnyxService telnyxService = retrofit.create(TelnyxService.class);
+
+        String initialCallLeg = sessionMap.get(session);
+
+        HashMap<String, Object> body = new HashMap<>();
+        body.put("format", "mp3");
+        body.put("channels", "dual");
+        body.put("play_beep", true);
+
+        Call<Map<String, Object>> call = telnyxService.recordCall(body, initialCallLeg);
+
+        try {
+            call.execute();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

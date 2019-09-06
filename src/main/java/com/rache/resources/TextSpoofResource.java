@@ -1,7 +1,6 @@
 package com.rache.resources;
 
 import com.rache.data.texts.TelnyxText;
-import com.rache.data.texts.TelnyxTextRequest;
 import com.rache.data.texts.TextRequest;
 import com.rache.db.ConnectionPool;
 import com.rache.networking.TelnyxService;

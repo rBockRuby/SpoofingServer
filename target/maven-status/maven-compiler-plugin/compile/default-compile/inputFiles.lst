@@ -4,7 +4,7 @@
 /Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/data/calls/CallRequest.java
 /Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/resources/TextSpoofResource.java
 /Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/networking/TelnyxService.java
-/Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/data/texts/TextMessage.java
+/Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/data/texts/TextDbModel.java
 /Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/resources/CallSpoofResource.java
 /Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/data/calls/Payload.java
 /Users/rachel.bock/workspace/innovationspoofing/src/main/java/com/rache/data/texts/TextRequest.java
